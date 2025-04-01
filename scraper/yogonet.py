@@ -59,14 +59,14 @@ class Scraper:
         return df
 
     def build_payload(self, raw_new):
-        title = self.get_text_or_none(raw_new, 'h2', REGEX['title'])
-        kicker = self.get_text_or_none(raw_new, 'div', REGEX['kicker'])
+        title = self.get_text(raw_new, 'h2', REGEX['title'])
+        kicker = self.get_text(raw_new, 'div', REGEX['kicker'])
         img = self.get_img(raw_new)
         link = self.get_url(raw_new)
         return {"Title": title, "Kicker": kicker, "Img": img, "Link": link} if title and kicker else None
 
     @staticmethod
-    def get_text_or_none(soup, tag, regex):
+    def get_text(soup, tag, regex):
         element = soup.find(tag, attrs={'class': regex})
         return element.text.strip() if element else None
 
