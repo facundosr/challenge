@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import platform
 import logging
 import pandas as pd
 from flask import Flask
@@ -12,7 +11,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from pyvirtualdisplay.display import Display
 from bs4 import BeautifulSoup as BS
 from google.cloud import bigquery
 
@@ -28,20 +26,16 @@ REGEX = {
 
 class Scraper:
     def __init__(self):
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
+        self.options = Options()
+        self.options.add_argument("--headless")
+        self.options.add_argument("--no-sandbox")
+        self.options.add_argument("--disable-dev-shm-usage")
         self.url = 'https://www.yogonet.com/international/'
-
         self.driver = None
-        if platform.system() == 'Linux':
-            self.display = Display(visible=0, size=(1366, 768))
-            self.display.start()
 
     def run(self):
         logging.info("Inicio del scraping")
-        with webdriver.Chrome(options=Options()) as driver:
+        with webdriver.Chrome(options=self.options) as driver:
             self.driver = driver
             self.driver.get(self.url)
             self.scroll_down()
@@ -49,7 +43,7 @@ class Scraper:
             soup = BS(html_content, 'lxml')
             raw_news = soup.find_all('div', attrs={'class': REGEX['news']})
             all_news = [self.build_payload(raw_new) for raw_new in raw_news]
-            return pd.DataFrame(filter(None, all_news))  # Filtra `None`
+            return pd.DataFrame(filter(None, all_news))
 
     def process_data(self, df):
         """Agrega métricas adicionales a los datos."""
