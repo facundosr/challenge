@@ -11,7 +11,7 @@ unzip \
 libnss3 \
 && rm -rf /var/lib/apt/lists/*
  
-ENV CHROMEDRIVER_VERSION=131.0.6778.108
+ENV CHROMEDRIVER_VERSION=135.0.7049.5
  
 ### install chrome
 RUN apt-get update && apt-get install -y wget && apt-get install -y zip
