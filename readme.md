@@ -52,7 +52,7 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 
 ## 📦 **Estructura del Proyecto**
 ```
-📁 mia-challenge/
+📁 challenge/
 ├── 📄 Dockerfile
 └── 📁 deployment/
     ├── 📄 deploy.sh
@@ -67,7 +67,7 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 1. **Clonar el repositorio** en tu máquina local:     
    ```bash
    git clone https://github.com/facundosr/challenge.git
-   cd mia-challenge/
+   cd challenge/
 
 ## Pasos para el Despliegue
 
