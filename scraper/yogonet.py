@@ -39,25 +39,47 @@ class Scraper:
             self.driver = driver
             self.driver.get(self.url)
             self.scroll_down()
+            soup = self.get_soup()
+        all_news = self.get_all_news(soup)
+        return pd.DataFrame(filter(None, all_news))
+        
+    def get_soup(self):
+        try:
             html_content = self.driver.page_source
-            soup = BS(html_content, 'lxml')
+            return BS(html_content, 'lxml')
+        except Exception as e:
+            logging.exception("Error al obtener el soup del html")
+            raise
+    
+    def get_all_news(self, soup):
+        try:
             raw_news = soup.find_all('div', attrs={'class': REGEX['news']})
-            all_news = [self.build_payload(raw_new) for raw_new in raw_news]
-            return pd.DataFrame(filter(None, all_news))
+            return [self.build_payload(raw_new) for raw_new in raw_news]
+        except Exception as e:
+            logging.exception("Error al obtener las noticias")
+            raise
 
     def process_data(self, df):
         """Agrega métricas adicionales a los datos."""
-        df["WordsCount"] = df["Title"].apply(lambda x: len(x.split()))
-        df["CharCount"] = df["Title"].apply(lambda x: len(x.replace(' ', '')))
-        df["CapitalizedWords"] = df["Title"].apply(lambda x: [word for word in x.split() if word.istitle()])
-        return df
+        try:
+            df["WordsCount"] = df["Title"].apply(lambda x: len(x.split()))
+            df["CharCount"] = df["Title"].apply(lambda x: len(x.replace(' ', '')))
+            df["CapitalizedWords"] = df["Title"].apply(lambda x: [word for word in x.split() if word.istitle()])
+            return df
+        except Exception as e:
+            logging.exception("Error al agregar métricas adicionales")
+            raise
 
     def build_payload(self, raw_new):
-        title = self.get_text(raw_new, 'h2', REGEX['title'])
-        kicker = self.get_text(raw_new, 'div', REGEX['kicker'])
-        img = self.get_img(raw_new)
-        link = self.get_url(raw_new)
-        return {"Title": title, "Kicker": kicker, "Img": img, "Link": link} if title and kicker else None
+        try:
+            title = self.get_text(raw_new, 'h2', REGEX['title'])
+            kicker = self.get_text(raw_new, 'div', REGEX['kicker'])
+            img = self.get_img(raw_new)
+            link = self.get_url(raw_new)
+            return {"Title": title, "Kicker": kicker, "Img": img, "Link": link} if title and kicker else None
+        except Exception as e:
+            logging.error(f"Error al construir el payload: {e}")
+            return None
 
     @staticmethod
     def get_text(soup, tag, regex):
@@ -89,34 +111,43 @@ class Scraper:
             logging.warning("No hay datos para insertar en BigQuery")
             return
 
-        project_id = os.getenv("PROJECT_ID")
-        dataset = os.getenv("DATASET")
-        table = os.getenv("TABLE")
+        try:
+            project_id = os.getenv("PROJECT_ID")
+            dataset = os.getenv("DATASET")
+            table = os.getenv("TABLE")
 
-        if not all([project_id, dataset, table]):
-            logging.error("Variables de entorno de BigQuery no configuradas correctamente")
-            return
+            if not all([project_id, dataset, table]):
+                logging.error("Variables de entorno de BigQuery no configuradas correctamente")
+                return
 
-        table_id = f"{project_id}.{dataset}.{table}"
-        client = bigquery.Client()
-        client.load_table_from_dataframe(df, table_id).result()
-        logging.info("Datos insertados correctamente en BigQuery")
+            table_id = f"{project_id}.{dataset}.{table}"
+            client = bigquery.Client()
+            client.load_table_from_dataframe(df, table_id).result()
+            logging.info("Datos insertados correctamente en BigQuery")
+        except Exception as e:
+            logging.error(f"Error al insertar en BigQuery: {e}")
+            raise
+
 
 @app.route('/', methods=['GET'])
 def run_app():
-    start_time = time.time()
+    try:
+        start_time = time.time()
 
-    scraper = Scraper()
-    scraped_data = scraper.run()
-    processed_data = scraper.process_data(scraped_data)
+        scraper = Scraper()
+        scraped_data = scraper.run()
+        processed_data = scraper.process_data(scraped_data)
 
-    scraper.insert_into_bigquery(processed_data)
+        scraper.insert_into_bigquery(processed_data)
 
-    data_dict = processed_data.head().to_dict(orient='records')
-    time_elapsed = time.time() - start_time
+        data_dict = processed_data.head().to_dict(orient='records')
+        time_elapsed = time.time() - start_time
 
-    logging.info(f"Script ejecutado en {time_elapsed:.2f} segundos.")
-    return {"message": "Scraping completed", "time_elapsed": time_elapsed, "data_sample": data_dict}
+        logging.info(f"Script ejecutado en {time_elapsed:.2f} segundos.")
+        return {"message": "Scraping completed", "time_elapsed": time_elapsed, "sample": data_dict}
+    except Exception as e:
+        logging.error(f"Error en `run_app()`: {e}")
+        return {"error": "Ocurrió un error en el servidor"}
 
 if __name__ == '__main__':
     app.run(port=int(os.environ.get("PORT", 8080)), host='0.0.0.0', debug=True)
