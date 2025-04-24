@@ -6,11 +6,6 @@
 
 ## **Desarrollado por: Facundo Sosa Ruveda**
 
-        Previa ejecución del dinamc scraper por primerva vez, se necesitan tener los modelos entrenados y guardados en la carpeta models
-        - paso 1: obtener el html raw de las noticias de yogonet con la ejecución del script ml/get_raw_elements.py y
-            categorizar las noticias con 0 y 1 en el categorized_news.csv
-        - paso 2: entrenar el modelo con el script ml/trainer.py que guardará los modelos en la carpeta models
-
 Este proyecto es un **scraper** que utiliza **Google Cloud Run** para realizar tareas de:  
 1. 🌐 **Scraping web** de noticias con `Python` y `Selenium`.  
 2. ⚙️ **Procesamiento de datos** con `pandas`.  
@@ -52,6 +47,7 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 3. ✅ Instaladas las herramientas necesarias:  
    - 🛠️ [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)  
    - 🛠️ [Docker](https://docs.docker.com/get-docker/)  
+4. ✅ **Modelos de ML creados**
 
 ---
 
@@ -77,6 +73,7 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 ```
 ---
 
+
 ## 🛠️ **Configuración Inicial**
 
 1. **Clonar el repositorio** en tu máquina local:     
@@ -86,17 +83,19 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 
 ## Pasos para el Despliegue
 
-### 1. Obtener csv con elementos crudos del html
+## Si no se tienen los modelos, crearlos como se explica a continuación, sino pasar al paso 2:
+### 1. **Obtener modelos**
+0.1. Obtener csv con elementos crudos del html
    - Ejectuar ml/get_raw_elements.py, creará un csv en la carpeta csv con el nombre categorized_news.csv
    - Clasificar con 1 aquellas filas que son noticias
 
-### 2. Entrenar el modelo de identificación de noticias
+0.2. Entrenar el modelo de identificación de noticias
    - Ejectuar ml/trainer.py, entrenará los modelos y los guardará en la carpeta models
 
-### 3. Pegar credenciales para google aplicattions
+### 2. Pegar credenciales para google aplicattions
 < Antes que nada debés pegar en la raíz del proyecto el archivo `google-application-credentials.json` >
 
-### 4. Insertar valores en las variables
+### 3. Insertar valores en las variables
 1. En el archivo dockerfile que está en la raíz del proyecto completar los valores de las variables:
    - `PROJECT_ID`: ID del proyecto de google cloud
    - `DATASET`: nombre del dataset o conjunto de datos de bigquery
@@ -106,7 +105,7 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
    - `PROJECT_ID`: ID del proyecto de google cloud
    - `REGION`: región en la que quiere ejecutarse el servicio Cloud Run
 
-### 5. Construcción de la Imagen Docker
+### 4. Construcción de la Imagen Docker
 
 El `Dockerfile` instala todas las dependencias necesarias para la aplicación, incluido ChromeDriver y Google Chrome para la ejecución del scraper. Sigue estos pasos:
 
@@ -114,7 +113,7 @@ El `Dockerfile` instala todas las dependencias necesarias para la aplicación, i
 2. Construí la imagen Docker:
    ```docker build -t yogonet-scrapper-app .```
 
-### 6. Ejecución del Script de Despliegue
+### 5. Ejecución del Script de Despliegue
 
 El script `deploy.sh` configura el proyecto, habilita las APIs necesarias y despliega la aplicación en Cloud Run.
 
