@@ -1,16 +1,11 @@
-import os
-import re
 import time
+import os
 import logging
+import joblib
 import pandas as pd
-from flask import Flask
 from selenium import webdriver
-from selenium.webdriver import ActionChains
-from selenium.webdriver.common.by import By
+from flask import Flask
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.actions.wheel_input import ScrollOrigin
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup as BS
 from google.cloud import bigquery
 
@@ -18,46 +13,74 @@ app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-REGEX = {
-    'title': re.compile(r'^titulo fuente_roboto_slab*'),
-    'kicker': re.compile(r'^volanta fuente_roboto_slab*'),
-    'news': re.compile(r'^slot slot_\d+ noticia*')
-}
+model = joblib.load("models/title_classifier.pkl")
+vectorizer = joblib.load("models/vectorizer.pkl")
 
-class Scraper:
+def is_valid_title(title):
+    vectorized = vectorizer.transform([title])
+    prediction = model.predict(vectorized)[0]
+    return prediction == 1
+
+
+class DinamicScraper:
+    """
+        Realiza el scraping de la página de noticias de Yogonet y filtra las noticias con un modelo entrnado para identificar noticias.
+        Previa ejecución del dinamc scraper por primerva vez, se necesitan tener los modelos entrenados y guardados en la carpeta models
+        - paso 1: obtener el html raw de las noticias de yogonet con la ejecución del script ml/get_raw_elements.py y
+            categorizar las noticias con 0 y 1 en el categorized_news.csv
+        - paso 2: entrenar el modelo con el script ml/trainer.py que guardará los modelos en la carpeta models
+    """
     def __init__(self):
         self.options = Options()
         self.options.add_argument("--headless")
         self.options.add_argument("--no-sandbox")
         self.options.add_argument("--disable-dev-shm-usage")
         self.url = 'https://www.yogonet.com/international/'
-        self.driver = None
 
     def run(self):
+        """Ejecuta el scraper y devuelve un DataFrame con noticias válidas"""
         logging.info("Inicio del scraping")
         with webdriver.Chrome(options=self.options) as driver:
-            self.driver = driver
-            self.driver.get(self.url)
-            self.scroll_down()
-            soup = self.get_soup()
+            driver.get(self.url)
+            soup = self.get_soup(driver)
+        
         all_news = self.get_all_news(soup)
         return pd.DataFrame(filter(None, all_news))
-        
-    def get_soup(self):
+
+    def get_soup(self, driver):
+        """Obtiene el HTML con BeautifulSoup"""
         try:
-            html_content = self.driver.page_source
+            html_content = driver.page_source
             return BS(html_content, 'lxml')
         except Exception as e:
             logging.exception("Error al obtener el soup del html")
             raise
-    
+
     def get_all_news(self, soup):
+        """Extrae todas las noticias del HTML"""
         try:
-            raw_news = soup.find_all('div', attrs={'class': REGEX['news']})
-            return [self.build_payload(raw_new) for raw_new in raw_news]
+            raw_news = soup.find_all('div', class_="noticia")
+            return [self.process_news(raw_new) for raw_new in raw_news]
         except Exception as e:
             logging.exception("Error al obtener las noticias")
             raise
+
+    def process_news(self, raw_new):
+        """Extrae título, kicker, imagen y enlace, y filtra con IA"""
+        try:
+            title = self.get_text(raw_new, "h2")
+            kicker = self.get_text(raw_new, "div", "volanta")
+            img = self.get_img(raw_new)
+            link = self.get_url(raw_new)
+
+            # Verificar con si el título es una noticia real
+            have_keys = [title!=None, link!=None, "https" in link, "news" in link ]
+            if title and is_valid_title(title) or all(have_keys):
+                return {"Title": title, "Kicker": kicker, "Img": img, "Link": link}
+            return None
+        except Exception as e:
+            logging.error(f"Error al procesar la noticia: {e}")
+            return None
 
     def process_data(self, df):
         """Agrega métricas adicionales a los datos."""
@@ -69,43 +92,7 @@ class Scraper:
         except Exception as e:
             logging.exception("Error al agregar métricas adicionales")
             raise
-
-    def build_payload(self, raw_new):
-        try:
-            title = self.get_text(raw_new, 'h2', REGEX['title'])
-            kicker = self.get_text(raw_new, 'div', REGEX['kicker'])
-            img = self.get_img(raw_new)
-            link = self.get_url(raw_new)
-            return {"Title": title, "Kicker": kicker, "Img": img, "Link": link} if title and kicker else None
-        except Exception as e:
-            logging.error(f"Error al construir el payload: {e}")
-            return None
-
-    @staticmethod
-    def get_text(soup, tag, regex):
-        element = soup.find(tag, attrs={'class': regex})
-        return element.text.strip() if element else None
-
-    @staticmethod
-    def get_img(raw_new):
-        img_container = raw_new.find('div', class_='imagen')
-        return img_container.img['src'] if img_container and img_container.img else None
-
-    @staticmethod
-    def get_url(raw_new):
-        url_container = raw_new.find('h2', attrs={'class': REGEX['title']})
-        return url_container.a['href'] if url_container and url_container.a else None
-
-    def scroll_down(self):
-        try:
-            wait = WebDriverWait(self.driver, 10)
-            footer = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'footer')))
-            
-            scroll_origin = ScrollOrigin.from_element(footer, 0, -50)
-            ActionChains(self.driver).scroll_from_origin(scroll_origin, 0, 200).perform()
-        except Exception as e:
-            logging.warning(f"No se pudo hacer scroll: {e}")
-
+        
     def insert_into_bigquery(self, df):
         if df.empty:
             logging.warning("No hay datos para insertar en BigQuery")
@@ -128,16 +115,34 @@ class Scraper:
             logging.error(f"Error al insertar en BigQuery: {e}")
             raise
 
+    @staticmethod
+    def get_text(soup, tag, class_name=None):
+        """Obtiene texto limpio de un tag"""
+        element = soup.find(tag, class_=class_name) if class_name else soup.find(tag)
+        return element.text.strip() if element else None
+
+    @staticmethod
+    def get_img(raw_new):
+        """Extrae la URL de la imagen"""
+        img_container = raw_new.find('img')
+        return img_container['src'] if img_container else None
+
+    @staticmethod
+    def get_url(raw_new):
+        """Extrae el enlace de la noticia"""
+        url_container = raw_new.find('a')
+        return url_container['href'] if url_container else None
 
 @app.route('/', methods=['GET'])
 def run_app():
     try:
         start_time = time.time()
 
-        scraper = Scraper()
+        scraper = DinamicScraper()
         scraped_data = scraper.run()
         processed_data = scraper.process_data(scraped_data)
-
+        print(scraped_data.head())
+        processed_data.to_csv("processed_data1.csv", index=False)
         scraper.insert_into_bigquery(processed_data)
 
         data_dict = processed_data.head().to_dict(orient='records')
