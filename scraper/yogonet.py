@@ -142,7 +142,7 @@ def run_app():
         scraped_data = scraper.run()
         processed_data = scraper.process_data(scraped_data)
         print(scraped_data.head())
-        processed_data.to_csv("processed_data1.csv", index=False)
+        processed_data.to_csv("processed_data.csv", index=False)
         scraper.insert_into_bigquery(processed_data)
 
         data_dict = processed_data.head().to_dict(orient='records')
