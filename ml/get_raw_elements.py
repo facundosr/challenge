@@ -75,6 +75,6 @@ if __name__ == "__main__":
 
     df = df.dropna(subset=["Title"])
     df = df.drop_duplicates(subset=["Title"], keep="first")
-    df.to_csv("csv/raw_elements.csv", sep=";",  index=False)
+    df.to_csv("csv/categorized_news.csv", sep=";",  index=False)
 
     print(f"✅ Noticias filtradas guardadas. Total: {len(df)}")
