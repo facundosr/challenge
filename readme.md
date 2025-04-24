@@ -85,11 +85,11 @@ Antes de comenzar, asegúrate de tener todo lo siguiente configurado:
 
 ## Si no se tienen los modelos, crearlos como se explica a continuación, sino pasar al paso 2:
 ### 1. **Obtener modelos**
-0.1. Obtener csv con elementos crudos del html
+1. Obtener csv con elementos crudos del html
    - Ejectuar ml/get_raw_elements.py, creará un csv en la carpeta csv con el nombre categorized_news.csv
    - Clasificar con 1 aquellas filas que son noticias
 
-0.2. Entrenar el modelo de identificación de noticias
+2. Entrenar el modelo de identificación de noticias
    - Ejectuar ml/trainer.py, entrenará los modelos y los guardará en la carpeta models
 
 ### 2. Pegar credenciales para google aplicattions
